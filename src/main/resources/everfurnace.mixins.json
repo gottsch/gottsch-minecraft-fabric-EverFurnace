@@ -3,7 +3,7 @@
 	"package": "mod.gottsch.fabric.everfurnace.core.mixin",
 	"compatibilityLevel": "JAVA_21",
 	"mixins": [
-      ""
+		"ModFurnaceBlockEntityMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
