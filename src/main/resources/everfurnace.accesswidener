@@ -10,3 +10,4 @@ accessible field net/minecraft/block/entity/AbstractFurnaceBlockEntity cookTimeT
 accessible field net/minecraft/block/entity/AbstractFurnaceBlockEntity matchGetter Lnet/minecraft/recipe/RecipeManager$MatchGetter;
 accessible method net/minecraft/block/entity/AbstractFurnaceBlockEntity isBurning ()Z
 accessible method net/minecraft/block/entity/AbstractFurnaceBlockEntity canAcceptRecipeOutput (Lnet/minecraft/registry/DynamicRegistryManager;Lnet/minecraft/recipe/RecipeEntry;Lnet/minecraft/util/collection/DefaultedList;I)Z
+accessible method net/minecraft/block/entity/AbstractFurnaceBlockEntity craftRecipe (Lnet/minecraft/registry/DynamicRegistryManager;Lnet/minecraft/recipe/RecipeEntry;Lnet/minecraft/util/collection/DefaultedList;I)Z

@@ -18,6 +18,8 @@
 package mod.gottsch.fabric.everfurnace.core.mixin;
 
 import mod.gottsch.fabric.everfurnace.core.EverFurnace;
+import net.minecraft.block.AbstractFurnaceBlock;
+import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.AbstractFurnaceBlockEntity;
 import net.minecraft.block.entity.BlockEntityType;
@@ -25,10 +27,12 @@ import net.minecraft.block.entity.LockableContainerBlockEntity;
 import net.minecraft.inventory.SidedInventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NbtCompound;
 import net.minecraft.recipe.RecipeEntry;
 import net.minecraft.recipe.RecipeInputProvider;
 import net.minecraft.recipe.RecipeUnlocker;
 import net.minecraft.recipe.input.SingleStackRecipeInput;
+import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
@@ -52,6 +56,16 @@ public abstract class ModFurnaceBlockEntityMixin extends LockableContainerBlockE
         super(blockEntityType, blockPos, blockState);
     }
 
+    @Inject(method = "writeNbt", at = @At("TAIL"))
+    private void onSave(NbtCompound nbt, RegistryWrapper.WrapperLookup registryLookup, CallbackInfo ci) {
+        nbt.putLong("lastGameTime", this.lastGameTime);
+    }
+
+    @Inject(method = "readNbt", at = @At("TAIL"))
+    private void onLoad(NbtCompound nbt, RegistryWrapper.WrapperLookup registryLookup, CallbackInfo ci) {
+        this.lastGameTime = nbt.getLong("lastGameTime");
+    }
+
     /**
      * a simple mixin at executes that executes at the beginning of the Furnace's tick event.
      * the mixin processes any jewelry/charms the player may be using.
@@ -62,22 +76,23 @@ public abstract class ModFurnaceBlockEntityMixin extends LockableContainerBlockE
         // cast block entity as a mixin block entity
         ModFurnaceBlockEntityMixin blockEntityMixin = (ModFurnaceBlockEntityMixin)(Object) blockEntity;
 
+        // capture saved lastGameTime
+        long localLastGameTime = blockEntityMixin.getLastGameTime();
+        // update lastGameTime
+        blockEntityMixin.setLastGameTime(blockEntity.getWorld().getTime());
+
         // check if the furnace is burning
         if (!blockEntity.isBurning()){
             return;
         }
 
-        // TODO need to save lastGameTime to nbt
         // calculate the difference between game time and the lastGameTime
-        long deltaTime = blockEntity.getWorld().getTime() - blockEntityMixin.getLastGameTime();
+        long deltaTime = blockEntity.getWorld().getTime() - localLastGameTime;
 
-        // update the last game time
-        blockEntityMixin.setLastGameTime(blockEntity.getWorld().getTime());
         // if less than 1 second (20 ticks) has elapsed then return
         if (deltaTime < 20) {
             return;
         }
-
         EverFurnace.LOGGER.debug("delta time -> {}", deltaTime);
 
         /*
@@ -120,9 +135,11 @@ public abstract class ModFurnaceBlockEntityMixin extends LockableContainerBlockE
         long actualAppliedTime = Math.min(deltaTime, maxInputTime);
 
         // TODO 2 use cases a) applyTime < cookTimeTotal (may or may not cook item) and b) applyTime > cookTimeTotal
-        if (actualAppliedTime < blockEntity.cookTimeTotal) {
+        if (actualAppliedTime < blockEntity.fuelTime) {
+            // TODO this may be incorrect... because fuelTime could be less than cookTimeTotal
+            // TODO it isn't a given that fuel time is always longer than cook time.
             // reduce burn time
-            blockEntity.burnTime =- (int) actualAppliedTime;
+            blockEntity.burnTime = -(int) actualAppliedTime;
             if (blockEntity.burnTime <= 0) {
                 Item fuelItem = fuelStack.getItem();
                 // reduce the size of the fuel stack
@@ -135,39 +152,39 @@ public abstract class ModFurnaceBlockEntityMixin extends LockableContainerBlockE
                     blockEntity.burnTime += blockEntity.fuelTime;
                 }
             }
+        } else {
+            quotient
+        }
 
-            // TODO process cook time
+        if (actualAppliedTime < blockEntity.cookTimeTotal) {
+            // increment cook time
+            blockEntity.cookTime += (int) actualAppliedTime;
+            if (blockEntity.cookTime >= blockEntity.cookTimeTotal) {
+                if (AbstractFurnaceBlockEntity.craftRecipe(world.getRegistryManager(), recipeEntry, blockEntity.inventory, blockEntity.getMaxCountPerStack())) {
+                    blockEntity.setLastRecipe(recipeEntry);
+                }
+                if (cookStack.isEmpty()) {
+                    blockEntity.cookTime = 0;
+                    blockEntity.cookTimeTotal = 0;
+                } else {
+                    blockEntity.cookTimeTotal -= blockEntity.cookTimeTotal;
+                }
+            }
+        }
+        // actual applied time is greated that cook time total,
+        // there, need to apply a factor of
+        else {
+            //
 
-            // TODO update state
+        }
 
+        if(!blockEntity.isBurning()) {
+            state = state.with(AbstractFurnaceBlock.LIT, Boolean.valueOf(blockEntity.isBurning()));
+            world.setBlockState(pos, state, Block.NOTIFY_ALL);
             AbstractFurnaceBlockEntity.markDirty(world, pos, state);
         }
 
 
-        // TODO have to really research super.tick() to understand what it is doing
-        // if the time elapsed is <= the cook time remaining, then update cookTime, burnTime
-//        if (deltaTime <= blockEntity.cookTimeTotal - blockEntity.cookTime) {
-//            blockEntity.cookTime += deltaTime;
-//            // redundency check
-//            if (blockEntity.cookTime > blockEntity.cookTimeTotal) {
-//                blockEntity.cookTime = blockEntity.cookTimeTotal;
-//            }
-//            // TODO update outputSlot
-//
-//
-//        } else {
-//
-//        }
-
-        // TODO use separate condition blocks for each of input
-        // TODO update burnTime/fuelTimes
-        // TODO update  fuelSlot, inputSlot
-
-
-        // TODO needs to update burnTime, fuelTime, and cookTime
-        // TODO do NOT update cookTimeTotal - this is the length of time it takes to cook the current stack, unless stack is empty then cookTimeTotal = 0
-        // TODO needs to update inventory slot0, slot1, slot2 (craftRecipe)
-        // TODO update LIT state
         // NOTE getCookTime() gets the cook time for the current slotted item
 //        EverFurnace.LOGGER.debug("updating lastGameTime to {}", ((AbstractFurnaceBlockEntity)(Object)blockEntity).getWorld().getTime());
     }
