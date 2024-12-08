@@ -65,8 +65,11 @@ public abstract class ModFurnaceBlockEntityMixin extends LockableContainerBlockE
     }
 
     /**
-     * a simple mixin at executes that executes at the beginning of the Furnace's tick event.
-     * the mixin processes any jewelry/charms the player may be using.
+     * a simple mixin that executes at the beginning of the Furnace's (BlastFurnace, Smoker) tick event.
+     * @param world
+     * @param pos
+     * @param state
+     * @param blockEntity
      * @param ci
      */
     @Inject(method = "tick", at = @At("HEAD")) // target more specifically somewhere closer to the actual calculations?
@@ -74,12 +77,10 @@ public abstract class ModFurnaceBlockEntityMixin extends LockableContainerBlockE
         // cast block entity as a mixin block entity
         ModFurnaceBlockEntityMixin blockEntityMixin = (ModFurnaceBlockEntityMixin)(Object) blockEntity;
 
-        // capture saved lastGameTime
+        // record last world time
         long localLastGameTime = blockEntityMixin.getLastGameTime();
-        // update lastGameTime
         blockEntityMixin.setLastGameTime(blockEntity.getWorld().getTime());
 
-        // check if the furnace is burning
         if (!blockEntity.isBurning()){
             return;
         }
@@ -87,11 +88,10 @@ public abstract class ModFurnaceBlockEntityMixin extends LockableContainerBlockE
         // calculate the difference between game time and the lastGameTime
         long deltaTime = blockEntity.getWorld().getTime() - localLastGameTime;
 
-        // if less than 1 second (20 ticks) has elapsed then return
-        if (deltaTime < 20) { // TODO this could be a config setting
+        // exit if not enough time has passed
+        if (deltaTime < 20) {
             return;
         }
-        EverFurnace.LOGGER.debug("delta time -> {}", deltaTime);
 
         /*
          * //////////////////////
@@ -109,7 +109,6 @@ public abstract class ModFurnaceBlockEntityMixin extends LockableContainerBlockE
         // test if can accept recipe output
         RecipeEntry<?> recipeEntry = (RecipeEntry<?>)blockEntity.matchGetter.getFirstMatch(new SingleStackRecipeInput(cookStack), world).orElse(null);
         if (!AbstractFurnaceBlockEntity.canAcceptRecipeOutput(blockEntity.getWorld().getRegistryManager(), recipeEntry, blockEntity.inventory, blockEntity.getMaxCountPerStack())) return;
-
         /////////////////////////
 
         /*
@@ -188,7 +187,6 @@ public abstract class ModFurnaceBlockEntityMixin extends LockableContainerBlockE
         else {
             int quotient = (int) (Math.floorDivExact(actualAppliedTime, blockEntity.cookTimeTotal));
             long remainder = actualAppliedTime % blockEntity.cookTimeTotal;
-            // TODO could write a more efficient method for craftRecipe for this for loop
             // reduced stack by quotient
             boolean isSuccessful = false;
             for (int iterations = 0; iterations < quotient; iterations++) {

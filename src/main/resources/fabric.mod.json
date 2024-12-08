@@ -12,7 +12,7 @@
 		"sources": "https://github.com/gottsch/gottsch-minecraft-fabric-EverFurnace"
 	},
 	"license": "GNU GPL v3",
-	"icon": "assets/everfurnace/icon.png",
+	"icon": "assets/everfurnace/everfurnace_logo.png",
 	"environment": "*",
 	"entrypoints": {
 		"main": [
