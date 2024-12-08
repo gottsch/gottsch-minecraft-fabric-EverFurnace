@@ -36,9 +36,7 @@ import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
-import org.spongepowered.asm.mixin.gen.Accessor;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -90,7 +88,7 @@ public abstract class ModFurnaceBlockEntityMixin extends LockableContainerBlockE
         long deltaTime = blockEntity.getWorld().getTime() - localLastGameTime;
 
         // if less than 1 second (20 ticks) has elapsed then return
-        if (deltaTime < 20) {
+        if (deltaTime < 20) { // TODO this could be a config setting
             return;
         }
         EverFurnace.LOGGER.debug("delta time -> {}", deltaTime);
@@ -134,12 +132,9 @@ public abstract class ModFurnaceBlockEntityMixin extends LockableContainerBlockE
          */
         long actualAppliedTime = Math.min(deltaTime, maxInputTime);
 
-        // TODO 2 use cases a) applyTime < cookTimeTotal (may or may not cook item) and b) applyTime > cookTimeTotal
         if (actualAppliedTime < blockEntity.fuelTime) {
-            // TODO this may be incorrect... because fuelTime could be less than cookTimeTotal
-            // TODO it isn't a given that fuel time is always longer than cook time.
             // reduce burn time
-            blockEntity.burnTime = -(int) actualAppliedTime;
+            blockEntity.burnTime =- (int) actualAppliedTime;
             if (blockEntity.burnTime <= 0) {
                 Item fuelItem = fuelStack.getItem();
                 // reduce the size of the fuel stack
@@ -149,16 +144,33 @@ public abstract class ModFurnaceBlockEntityMixin extends LockableContainerBlockE
                     Item fuelItemRecipeRemainder = fuelItem.getRecipeRemainder();
                     blockEntity.inventory.set(1, fuelItemRecipeRemainder == null ? ItemStack.EMPTY : new ItemStack(fuelItemRecipeRemainder));
                 } else {
-                    blockEntity.burnTime += blockEntity.fuelTime;
+                    blockEntity.burnTime =+ blockEntity.fuelTime;
                 }
             }
         } else {
-            quotient
+            int quotient = (int) (Math.floorDivExact(actualAppliedTime, blockEntity.fuelTime));
+            long remainder = actualAppliedTime % blockEntity.fuelTime;
+            // reduced stack by quotient
+            Item fuelItem = fuelStack.getItem();
+            fuelStack.decrement(quotient);
+            // reduce burnTime by remainder
+            blockEntity.burnTime =- (int)remainder;
+            if (blockEntity.burnTime <= 0) {
+                // reduce the size of the fuel stack
+                fuelStack.decrement(1);
+            }
+            if (fuelStack.isEmpty()) {
+                blockEntity.burnTime = 0;
+                Item fuelItemRecipeRemainder = fuelItem.getRecipeRemainder();
+                blockEntity.inventory.set(1, fuelItemRecipeRemainder == null ? ItemStack.EMPTY : new ItemStack(fuelItemRecipeRemainder));
+            } else {
+                blockEntity.burnTime =+ blockEntity.fuelTime;
+            }
         }
 
         if (actualAppliedTime < blockEntity.cookTimeTotal) {
             // increment cook time
-            blockEntity.cookTime += (int) actualAppliedTime;
+            blockEntity.cookTime =+ (int) actualAppliedTime;
             if (blockEntity.cookTime >= blockEntity.cookTimeTotal) {
                 if (AbstractFurnaceBlockEntity.craftRecipe(world.getRegistryManager(), recipeEntry, blockEntity.inventory, blockEntity.getMaxCountPerStack())) {
                     blockEntity.setLastRecipe(recipeEntry);
@@ -174,8 +186,30 @@ public abstract class ModFurnaceBlockEntityMixin extends LockableContainerBlockE
         // actual applied time is greated that cook time total,
         // there, need to apply a factor of
         else {
-            //
+            int quotient = (int) (Math.floorDivExact(actualAppliedTime, blockEntity.cookTimeTotal));
+            long remainder = actualAppliedTime % blockEntity.cookTimeTotal;
+            // TODO could write a more efficient method for craftRecipe for this for loop
+            // reduced stack by quotient
+            boolean isSuccessful = false;
+            for (int iterations = 0; iterations < quotient; iterations++) {
+                isSuccessful |= AbstractFurnaceBlockEntity.craftRecipe(world.getRegistryManager(), recipeEntry, blockEntity.inventory, blockEntity.getMaxCountPerStack());
+            }
+            // update last recipe
+            if (isSuccessful) blockEntity.setLastRecipe(recipeEntry);
 
+            // increment cook time
+            blockEntity.cookTime =+ (int) remainder;
+            if (blockEntity.cookTime >= blockEntity.cookTimeTotal) {
+                if (AbstractFurnaceBlockEntity.craftRecipe(world.getRegistryManager(), recipeEntry, blockEntity.inventory, blockEntity.getMaxCountPerStack())) {
+                    blockEntity.setLastRecipe(recipeEntry);
+                }
+                if (cookStack.isEmpty()) {
+                    blockEntity.cookTime = 0;
+                    blockEntity.cookTimeTotal = 0;
+                } else {
+                    blockEntity.cookTimeTotal -= blockEntity.cookTimeTotal;
+                }
+            }
         }
 
         if(!blockEntity.isBurning()) {
@@ -183,10 +217,6 @@ public abstract class ModFurnaceBlockEntityMixin extends LockableContainerBlockE
             world.setBlockState(pos, state, Block.NOTIFY_ALL);
             AbstractFurnaceBlockEntity.markDirty(world, pos, state);
         }
-
-
-        // NOTE getCookTime() gets the cook time for the current slotted item
-//        EverFurnace.LOGGER.debug("updating lastGameTime to {}", ((AbstractFurnaceBlockEntity)(Object)blockEntity).getWorld().getTime());
     }
 
     @Unique
