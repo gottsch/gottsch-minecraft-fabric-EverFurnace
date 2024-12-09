@@ -1,13 +1,11 @@
 accessWidener v1 named
-accessible field net/minecraft/block/entity/AbstractFurnaceBlockEntity INPUT_SLOT_INDEX I
-accessible field net/minecraft/block/entity/AbstractFurnaceBlockEntity FUEL_SLOT_INDEX I
-accessible field net/minecraft/block/entity/AbstractFurnaceBlockEntity OUTPUT_SLOT_INDEX I
 accessible field net/minecraft/block/entity/AbstractFurnaceBlockEntity inventory Lnet/minecraft/util/collection/DefaultedList;
 accessible field net/minecraft/block/entity/AbstractFurnaceBlockEntity burnTime I
 accessible field net/minecraft/block/entity/AbstractFurnaceBlockEntity cookTime I
 accessible field net/minecraft/block/entity/AbstractFurnaceBlockEntity fuelTime I
 accessible field net/minecraft/block/entity/AbstractFurnaceBlockEntity cookTimeTotal I
-accessible field net/minecraft/block/entity/AbstractFurnaceBlockEntity matchGetter Lnet/minecraft/recipe/RecipeManager$MatchGetter;
+accessible field net/minecraft/block/entity/AbstractFurnaceBlockEntity recipeType Lnet/minecraft/recipe/RecipeType;
+
 accessible method net/minecraft/block/entity/AbstractFurnaceBlockEntity isBurning ()Z
 accessible method net/minecraft/block/entity/AbstractFurnaceBlockEntity canAcceptRecipeOutput (Lnet/minecraft/recipe/Recipe;Lnet/minecraft/util/collection/DefaultedList;I)Z
 accessible method net/minecraft/block/entity/AbstractFurnaceBlockEntity craftRecipe (Lnet/minecraft/recipe/Recipe;Lnet/minecraft/util/collection/DefaultedList;I)Z
