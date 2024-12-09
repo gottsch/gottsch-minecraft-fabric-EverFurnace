@@ -7,7 +7,8 @@ accessible field net/minecraft/block/entity/AbstractFurnaceBlockEntity burnTime 
 accessible field net/minecraft/block/entity/AbstractFurnaceBlockEntity cookTime I
 accessible field net/minecraft/block/entity/AbstractFurnaceBlockEntity fuelTime I
 accessible field net/minecraft/block/entity/AbstractFurnaceBlockEntity cookTimeTotal I
-accessible field net/minecraft/block/entity/AbstractFurnaceBlockEntity matchGetter Lnet/minecraft/recipe/RecipeManager$MatchGetter;
+accessible field net/minecraft/block/entity/AbstractFurnaceBlockEntity matchGetter Lnet/minecraft/recipe/ServerRecipeManager$MatchGetter;
 accessible method net/minecraft/block/entity/AbstractFurnaceBlockEntity isBurning ()Z
-accessible method net/minecraft/block/entity/AbstractFurnaceBlockEntity canAcceptRecipeOutput (Lnet/minecraft/registry/DynamicRegistryManager;Lnet/minecraft/recipe/RecipeEntry;Lnet/minecraft/util/collection/DefaultedList;I)Z
-accessible method net/minecraft/block/entity/AbstractFurnaceBlockEntity craftRecipe (Lnet/minecraft/registry/DynamicRegistryManager;Lnet/minecraft/recipe/RecipeEntry;Lnet/minecraft/util/collection/DefaultedList;I)Z
+accessible method net/minecraft/block/entity/AbstractFurnaceBlockEntity canAcceptRecipeOutput (Lnet/minecraft/registry/DynamicRegistryManager;Lnet/minecraft/recipe/RecipeEntry;Lnet/minecraft/recipe/input/SingleStackRecipeInput;Lnet/minecraft/util/collection/DefaultedList;I)Z
+accessible method net/minecraft/block/entity/AbstractFurnaceBlockEntity craftRecipe (Lnet/minecraft/registry/DynamicRegistryManager;Lnet/minecraft/recipe/RecipeEntry;Lnet/minecraft/recipe/input/SingleStackRecipeInput;Lnet/minecraft/util/collection/DefaultedList;I)Z
+accessible method net/minecraft/block/entity/AbstractFurnaceBlockEntity getFuelTime (Lnet/minecraft/item/FuelRegistry;Lnet/minecraft/item/ItemStack;)I
