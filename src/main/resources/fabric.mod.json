@@ -1,0 +1,38 @@
+{
+	"schemaVersion": 1,
+	"id": "everfurnace",
+	"version": "${version}",
+	"name": "EverFurnace",
+	"description": "",
+	"authors": [
+		"gottsch"
+	],
+	"contact": {
+		"homepage": "https://www.curseforge.com/minecraft/mc-mods/everfurnace",
+		"sources": "https://github.com/gottsch/gottsch-minecraft-fabric-EverFurnace"
+	},
+	"license": "GNU GPL v3",
+	"icon": "assets/everfurnace/everfurnace_logo.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"mod.gottsch.fabric.everfurnace.core.EverFurnace"
+		],
+		"fabric-datagen": [
+			"mod.gottsch.fabric.everfurnace.core.EverFurnaceDataGenerator"
+		]
+	},
+	"mixins": [
+		"everfurnace.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.16.9",
+		"minecraft": "~1.20.1",
+		"java": ">=17",
+		"fabric-api": "*"
+	},
+	"suggests": {
+		"another-mod": "*"
+	},
+	"accessWidener" : "everfurnace.accesswidener"
+}
