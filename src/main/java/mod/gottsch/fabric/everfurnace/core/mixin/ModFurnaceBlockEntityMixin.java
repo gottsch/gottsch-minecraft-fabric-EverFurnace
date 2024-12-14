@@ -120,6 +120,12 @@ public abstract class ModFurnaceBlockEntityMixin extends LockableContainerBlockE
         // calculate totalBurnTimeRemaining
         ItemStack fuelStack = blockEntity.inventory.get(AbstractFurnaceBlockEntity.FUEL_SLOT_INDEX);
         if (fuelStack.isEmpty()) return;
+
+        // have to calculate fuel time as it is no longer calculated during readNbt() as in 1.21.1
+        if (blockEntity.litTotalTime == 0) {
+            blockEntity.litTotalTime = blockEntity.getFuelTime(blockEntity.getWorld().getFuelRegistry(), fuelStack);
+        }
+
         long totalBurnTimeRemaining = (long) (fuelStack.getCount() - 1) * blockEntity.litTotalTime + blockEntity.litTimeRemaining;
 
         // calculate totalCookTimeRemaining
@@ -134,10 +140,6 @@ public abstract class ModFurnaceBlockEntityMixin extends LockableContainerBlockE
          */
         long actualAppliedTime = Math.min(deltaTime, maxInputTime);
 
-        // have to calculate fuel time as it is no longer calculated during readNbt() as in 1.21.1
-        if (blockEntity.litTotalTime == 0) {
-            blockEntity.litTotalTime = blockEntity.getFuelTime(blockEntity.getWorld().getFuelRegistry(), fuelStack);
-        }
         if (actualAppliedTime < blockEntity.litTotalTime) {
             // reduce burn time
             blockEntity.litTimeRemaining =- (int) actualAppliedTime;
