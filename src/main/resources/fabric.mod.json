@@ -33,6 +33,5 @@
 	},
 	"suggests": {
 		"another-mod": "*"
-	},
-	"accessWidener" : "everfurnace.accesswidener"
+	}
 }

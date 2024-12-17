@@ -3,7 +3,9 @@ accessible field net/minecraft/block/entity/AbstractFurnaceBlockEntity INPUT_SLO
 accessible field net/minecraft/block/entity/AbstractFurnaceBlockEntity FUEL_SLOT_INDEX I
 accessible field net/minecraft/block/entity/AbstractFurnaceBlockEntity OUTPUT_SLOT_INDEX I
 accessible field net/minecraft/block/entity/AbstractFurnaceBlockEntity inventory Lnet/minecraft/util/collection/DefaultedList;
+# litTotalTime = fuelTime
 accessible field net/minecraft/block/entity/AbstractFurnaceBlockEntity litTotalTime I
+# litTimeRemaining = burnTime
 accessible field net/minecraft/block/entity/AbstractFurnaceBlockEntity litTimeRemaining I
 accessible field net/minecraft/block/entity/AbstractFurnaceBlockEntity cookingTotalTime I
 accessible field net/minecraft/block/entity/AbstractFurnaceBlockEntity cookingTimeSpent I

@@ -84,6 +84,6 @@ publishing {
 	}
 }
 
-loom {
-	accessWidenerPath = file("src/main/resources/everfurnace.accesswidener")
-}
+//loom {
+//	accessWidenerPath = file("src/main/resources/everfurnace.accesswidener")
+//}
