@@ -54,9 +54,17 @@ public abstract class EverFurnaceBlockEntity extends LockableContainerBlockEntit
     private static final int OUTPUT_SLOT = 2;
     @Unique
     private static final String LAST_GAME_TIME_TAG = "everfurnace_lastGameTime";
+    @Unique
+    private static final String REMAINING_TIME_TAG = "everfurnace_remainingTime";
+    @Unique
+    private static final String COOLDOWN_TIME_TAG = "everfurnace_cooldownTime";
 
     @Unique
     private long everfurnace$lastGameTime;
+    @Unique
+    private int everfurnace$remainingTime;
+    @Unique
+    private int everfurnace$Cooldown;
 
     protected EverFurnaceBlockEntity(BlockEntityType<?> blockEntityType, BlockPos blockPos, BlockState blockState) {
         super(blockEntityType, blockPos, blockState);
@@ -90,12 +98,19 @@ public abstract class EverFurnaceBlockEntity extends LockableContainerBlockEntit
         long localLastGameTime = blockEntityMixin.getEverfurnace$lastGameTime();
         blockEntityMixin.setEverfurnace$lastGameTime(blockEntity.getWorld().getTime());
 
+        // if not burning - no fuel left - then exit
         if (!everFurnaceBlockEntity.callIsBurning()){
             return;
         }
 
         // calculate the difference between game time and the lastGameTime
         long deltaTime = blockEntity.getWorld().getTime() - localLastGameTime;
+
+        int remainingTime = blockEntityMixin.getEverfurnace$remainingTime();
+        int cooldownTime = blockEntityMixin.getEverfurnace$Cooldown();
+
+        // TODO if delta < 20 && remaining == 0 then return
+        // TODO use HopperBlockEntity.TRANSFER_COOLDOWN for the max cooldown
 
         // exit if not enough time has passed
         if (deltaTime < 20) {
@@ -251,5 +266,21 @@ public abstract class EverFurnaceBlockEntity extends LockableContainerBlockEntit
     @Unique
     public void setEverfurnace$lastGameTime(long gameTime) {
         this.everfurnace$lastGameTime = gameTime;
+    }
+    @Unique
+    public int getEverfurnace$remainingTime() {
+        return everfurnace$remainingTime;
+    }
+    @Unique
+    public void setEverfurnace$remainingTime(int everfurnace$remainingTime) {
+        this.everfurnace$remainingTime = everfurnace$remainingTime;
+    }
+    @Unique
+    public int getEverfurnace$Cooldown() {
+        return everfurnace$Cooldown;
+    }
+    @Unique
+    public void setEverfurnace$Cooldown(int everfurnace$Cooldown) {
+        this.everfurnace$Cooldown = everfurnace$Cooldown;
     }
 }
