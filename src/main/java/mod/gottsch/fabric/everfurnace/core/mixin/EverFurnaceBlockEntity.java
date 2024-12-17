@@ -22,6 +22,7 @@ import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.AbstractFurnaceBlockEntity;
 import net.minecraft.block.entity.BlockEntityType;
+import net.minecraft.block.entity.HopperBlockEntity;
 import net.minecraft.block.entity.LockableContainerBlockEntity;
 import net.minecraft.inventory.SidedInventory;
 import net.minecraft.item.Item;
@@ -99,7 +100,8 @@ public abstract class EverFurnaceBlockEntity extends LockableContainerBlockEntit
         blockEntityMixin.setEverfurnace$lastGameTime(blockEntity.getWorld().getTime());
 
         // if not burning - no fuel left - then exit
-        if (!everFurnaceBlockEntity.callIsBurning()){
+        if (!everFurnaceBlockEntity.callIsBurning()) {
+            blockEntityMixin.everfurnace$ClearTimes();
             return;
         }
 
@@ -109,13 +111,11 @@ public abstract class EverFurnaceBlockEntity extends LockableContainerBlockEntit
         int remainingTime = blockEntityMixin.getEverfurnace$remainingTime();
         int cooldownTime = blockEntityMixin.getEverfurnace$Cooldown();
 
-        // TODO if delta < 20 && remaining == 0 then return
-        // TODO use HopperBlockEntity.TRANSFER_COOLDOWN for the max cooldown
-
         // exit if not enough time has passed
-        if (deltaTime < 20) {
+        if (deltaTime < 20 && remainingTime == 0) {
             return;
         }
+        deltaTime += remainingTime;
 
         /*
          * //////////////////////
@@ -123,12 +123,24 @@ public abstract class EverFurnaceBlockEntity extends LockableContainerBlockEntit
          * //////////////////////
          */
         ItemStack cookStack = everFurnaceBlockEntity.getInventory().get(INPUT_SLOT);
-        if (cookStack.isEmpty()) return;
+        if (cookStack.isEmpty()) {
+            blockEntityMixin.setEverfurnace$Cooldown(--cooldownTime);
+            if (cooldownTime <= 0) {
+                blockEntityMixin.setEverfurnace$remainingTime(0);
+            }
+            return;
+        }
 
         // get the output stack
         ItemStack outputStack = everFurnaceBlockEntity.getInventory().get(OUTPUT_SLOT);
         // return if it is already maxed out
-        if (!outputStack.isEmpty() && outputStack.getCount() == blockEntity.getMaxCountPerStack()) return;
+        if (!outputStack.isEmpty() && outputStack.getCount() == blockEntity.getMaxCountPerStack()) {
+            blockEntityMixin.setEverfurnace$Cooldown(--cooldownTime);
+            if (cooldownTime <= 0) {
+                blockEntityMixin.setEverfurnace$remainingTime(0);
+            }
+            return;
+        }
 
         // test if can accept recipe output
         SingleStackRecipeInput singleStackRecipeInput = new SingleStackRecipeInput(cookStack);
@@ -154,7 +166,7 @@ public abstract class EverFurnaceBlockEntity extends LockableContainerBlockEntit
                 + everFurnaceBlockEntity.getLitTimeRemaining();
 
         // calculate totalCookTimeRemaining
-        long totalCookTimeRemaining = (long) (cookStack.getCount() -1) * everFurnaceBlockEntity.getCookingTotalTime()
+        long totalCookTimeRemaining = (long) (cookStack.getCount() - 1) * everFurnaceBlockEntity.getCookingTotalTime()
                 + (everFurnaceBlockEntity.getCookingTotalTime() - everFurnaceBlockEntity.getCookingTimeSpent());
 
         // determine the max amount of time that can be used before one or both input run out.
@@ -166,10 +178,17 @@ public abstract class EverFurnaceBlockEntity extends LockableContainerBlockEntit
          */
         long actualAppliedTime = Math.min(deltaTime, maxInputTime);
 
+        // calculate and save the remaining time
+        if (deltaTime > actualAppliedTime) {
+            blockEntityMixin.setEverfurnace$remainingTime((int) (deltaTime - actualAppliedTime));
+        } else {
+            blockEntityMixin.setEverfurnace$remainingTime(0);
+        }
+
         if (actualAppliedTime < everFurnaceBlockEntity.getLitTotalTime()) {
             // reduce burn time
             everFurnaceBlockEntity.setLitTimeRemaining(everFurnaceBlockEntity.getLitTimeRemaining()
-                - (int)  actualAppliedTime);
+                - (int) actualAppliedTime);
 
             if (everFurnaceBlockEntity.getLitTimeRemaining() <= 0) {
                 Item fuelItem = fuelStack.getItem();
@@ -179,13 +198,12 @@ public abstract class EverFurnaceBlockEntity extends LockableContainerBlockEntit
                     everFurnaceBlockEntity.setLitTimeRemaining(0);
                     everFurnaceBlockEntity.getInventory().set(1, fuelItem.getRecipeRemainder());
                 } else {
-                    everFurnaceBlockEntity.setLitTimeRemaining(everFurnaceBlockEntity.getLitTimeRemaining()
-                            - everFurnaceBlockEntity.getLitTotalTime());
+                    everFurnaceBlockEntity.setLitTimeRemaining(
+                            everFurnaceBlockEntity.getLitTimeRemaining() - everFurnaceBlockEntity.getLitTotalTime());
                 }
             }
         } else {
-            int quotient = (int) (Math.floorDivExact(actualAppliedTime, everFurnaceBlockEntity.getLitTotalTime()
-            ));
+            int quotient = (int) (Math.floorDivExact(actualAppliedTime, everFurnaceBlockEntity.getLitTotalTime()));
             long remainder = actualAppliedTime % everFurnaceBlockEntity.getLitTotalTime();
             // reduced stack by quotient
             Item fuelItem = fuelStack.getItem();
@@ -221,8 +239,8 @@ public abstract class EverFurnaceBlockEntity extends LockableContainerBlockEntit
                 }
             }
         }
-        // actual applied time is greated that cook time total,
-        // there, need to apply a factor of
+        // actual applied time is greater than cook time total,
+        // then, need to apply a factor of
         else {
             int quotient = (int) (Math.floorDivExact(actualAppliedTime, everFurnaceBlockEntity.getCookingTotalTime()));
             long remainder = actualAppliedTime % everFurnaceBlockEntity.getCookingTotalTime();
@@ -251,11 +269,21 @@ public abstract class EverFurnaceBlockEntity extends LockableContainerBlockEntit
             }
         }
 
+        // reset cooldown time
+        blockEntityMixin.setEverfurnace$Cooldown(HopperBlockEntity.TRANSFER_COOLDOWN);
+
+        // update block state
         if(!everFurnaceBlockEntity.callIsBurning()) {
             state = state.with(AbstractFurnaceBlock.LIT, Boolean.valueOf(everFurnaceBlockEntity.callIsBurning()));
             world.setBlockState(pos, state, Block.NOTIFY_ALL);
             AbstractFurnaceBlockEntity.markDirty(world, pos, state);
         }
+    }
+
+    @Unique
+    public void everfurnace$ClearTimes() {
+        setEverfurnace$Cooldown(HopperBlockEntity.TRANSFER_COOLDOWN);
+        setEverfurnace$remainingTime(0);
     }
 
     @Unique

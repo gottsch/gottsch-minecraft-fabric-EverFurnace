@@ -9,16 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Save any unused detla/elapsed time (remainingDeltaTime) to the next tick
+- Save any unused delta/elapsed time (remainingTime) to the next tick
     in order to process against any inputted cook items, ie provided by hopper.
-    if none is found then remainingDeltaTime is reset to 0.
+    if none is found then remainingDeltaTime is reset to 0. this process is repeated
+    for up to a hopper cycle (8 ticks).
 - Refactored to use Accessors and Invokers instead of accesstransformer.cfg
 - Refactored to use mixin best practices to rename properties. this can cause a 
     one-time loss of elapsed time on first load of furnace.
 
 ### Added
 
-- Saving new data -> remainingDeltaTime
+- Saving new data -> remainingDeltaTime, cooldownTime
 
 ## [1.0.1] - 2024-12-13
 
