@@ -27,10 +27,14 @@ import net.minecraft.inventory.SidedInventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
-import net.minecraft.recipe.Recipe;
+import mod.gottsch.fabric.everfurnace.core.CatchupEffectHelper;
+import net.minecraft.recipe.RecipeEntry;
 import net.minecraft.recipe.RecipeInputProvider;
 import net.minecraft.recipe.RecipeUnlocker;
+import net.minecraft.recipe.input.SingleStackRecipeInput;
 import net.minecraft.registry.RegistryWrapper;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.collection.DefaultedList;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
@@ -43,173 +47,167 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * Created by Mark Gottschling on 12/05/2024
  */
 @Mixin(AbstractFurnaceBlockEntity.class)
-public abstract class ModFurnaceBlockEntityMixin extends LockableContainerBlockEntity implements SidedInventory, RecipeUnlocker, RecipeInputProvider { //}, IModFurnaceBlockEntityMixin {
+public abstract class ModFurnaceBlockEntityMixin extends LockableContainerBlockEntity
+        implements SidedInventory, RecipeUnlocker, RecipeInputProvider {
 
-    @Unique
-    private long lastGameTime;
+    @Unique private static final int INPUT_SLOT  = 0;
+    @Unique private static final int FUEL_SLOT   = 1;
+    @Unique private static final int OUTPUT_SLOT = 2;
+
+    @Unique private long lastGameTime;
 
     protected ModFurnaceBlockEntityMixin(BlockEntityType<?> blockEntityType, BlockPos blockPos, BlockState blockState) {
         super(blockEntityType, blockPos, blockState);
     }
 
     @Inject(method = "writeNbt", at = @At("TAIL"))
-    private void onSave(NbtCompound nbt, CallbackInfo ci) {
+    private void onSave(NbtCompound nbt, RegistryWrapper.WrapperLookup registries, CallbackInfo ci) {
         nbt.putLong("lastGameTime", this.lastGameTime);
     }
 
     @Inject(method = "readNbt", at = @At("TAIL"))
-    private void onLoad(NbtCompound nbt, CallbackInfo ci) {
+    private void onLoad(NbtCompound nbt, RegistryWrapper.WrapperLookup registries, CallbackInfo ci) {
         this.lastGameTime = nbt.getLong("lastGameTime");
     }
 
     /**
-     * a simple mixin that executes at the beginning of the Furnace's (BlastFurnace, Smoker) tick event.
-     * @param world
-     * @param pos
-     * @param state
-     * @param blockEntity
-     * @param ci
+     * A simple mixin that executes at the beginning of the Furnace's (BlastFurnace, Smoker)
+     * tick event and applies offline catch-up cooking.
      */
-    @Inject(method = "tick", at = @At("HEAD")) // target more specifically somewhere closer to the actual calculations?
-    private static void onTick(World world, BlockPos pos, BlockState state, AbstractFurnaceBlockEntity blockEntity, CallbackInfo ci) {
-        // cast block entity as a mixin block entity
-        ModFurnaceBlockEntityMixin blockEntityMixin = (ModFurnaceBlockEntityMixin)(Object) blockEntity;
+    @Inject(method = "tick", at = @At("HEAD"))
+    private static void onTick(World world, BlockPos pos, BlockState state,
+                                AbstractFurnaceBlockEntity blockEntity, CallbackInfo ci) {
 
-        // record last world time
-        long localLastGameTime = blockEntityMixin.getLastGameTime();
-        blockEntityMixin.setLastGameTime(blockEntity.getWorld().getTime());
+        ModFurnaceBlockEntityMixin mixin    = (ModFurnaceBlockEntityMixin)(Object) blockEntity;
+        IModFurnaceBlockEntityMixin accessor = (IModFurnaceBlockEntityMixin)(Object) blockEntity;
 
-        if (!blockEntity.isBurning()){
+        long localLastGameTime = mixin.getLastGameTime();
+        mixin.setLastGameTime(world.getTime());
+
+        if (!accessor.callIsBurning()) {
             return;
         }
 
-        // calculate the difference between game time and the lastGameTime
-        long deltaTime = blockEntity.getWorld().getTime() - localLastGameTime;
-
-        // exit if not enough time has passed
+        long deltaTime = world.getTime() - localLastGameTime;
         if (deltaTime < 20) {
             return;
         }
 
-        /*
-         * //////////////////////
-         * validations
-         * //////////////////////
-         */
-        ItemStack cookStack = blockEntity.inventory.get(AbstractFurnaceBlockEntity.INPUT_SLOT_INDEX);
+        DefaultedList<ItemStack> inv = accessor.getInventory();
+
+        ItemStack cookStack = inv.get(INPUT_SLOT);
         if (cookStack.isEmpty()) return;
 
-        // get the output stack
-        ItemStack outputStack = blockEntity.inventory.get(AbstractFurnaceBlockEntity.OUTPUT_SLOT_INDEX);
-        // return if it is already maxed out
+        ItemStack outputStack = inv.get(OUTPUT_SLOT);
         if (!outputStack.isEmpty() && outputStack.getCount() == blockEntity.getMaxCountPerStack()) return;
 
-        // test if can accept recipe output
-        Recipe<?> recipeEntry = (Recipe)blockEntity.matchGetter.getFirstMatch(blockEntity, world).orElse(null);
-        if (!AbstractFurnaceBlockEntity.canAcceptRecipeOutput(blockEntity.getWorld().getRegistryManager(), recipeEntry, blockEntity.inventory, blockEntity.getMaxCountPerStack())) return;
-        /////////////////////////
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        RecipeEntry<?> recipeEntry = (RecipeEntry<?>) accessor.getMatchGetter()
+                .getFirstMatch(new SingleStackRecipeInput(cookStack), world).orElse(null);
+        if (!IModFurnaceBlockEntityMixin.callCanAcceptRecipeOutput(
+                world.getRegistryManager(), recipeEntry, inv, blockEntity.getMaxCountPerStack())) return;
 
-        /*
-         * begin processing
-         */
-        // calculate totalBurnTimeRemaining
-        ItemStack fuelStack = blockEntity.inventory.get(AbstractFurnaceBlockEntity.FUEL_SLOT_INDEX);
+        ItemStack fuelStack = inv.get(FUEL_SLOT);
         if (fuelStack.isEmpty()) return;
-        long totalBurnTimeRemaining = (long) (fuelStack.getCount() - 1) * blockEntity.fuelTime + blockEntity.burnTime;
 
-        // calculate totalCookTimeRemaining
-        long totalCookTimeRemaining = (long) (cookStack.getCount() -1) * blockEntity.cookTimeTotal + (blockEntity.cookTimeTotal - blockEntity.cookTime);
+        long totalBurnTimeRemaining = (long)(fuelStack.getCount() - 1) * accessor.getFuelTime() + accessor.getBurnTime();
+        long totalCookTimeRemaining = (long)(cookStack.getCount() - 1) * accessor.getCookTimeTotal()
+                + (accessor.getCookTimeTotal() - accessor.getCookTime());
 
-        // determine the max amount of time that can be used before one or both input run out.
-        long maxInputTime = Math.min(totalBurnTimeRemaining, totalCookTimeRemaining);
-
-        /*
-         * determine  the actual max time that can be applied to processing. ie if elapsed time is < maxInputTime,
-         * then only the elapse time can be used.
-         */
+        long maxInputTime      = Math.min(totalBurnTimeRemaining, totalCookTimeRemaining);
         long actualAppliedTime = Math.min(deltaTime, maxInputTime);
 
-        if (actualAppliedTime < blockEntity.fuelTime) {
-            // reduce burn time
-            blockEntity.burnTime =- (int) actualAppliedTime;
-            if (blockEntity.burnTime <= 0) {
+        // ---- fuel consumption -----------------------------------------------
+
+        if (actualAppliedTime < accessor.getFuelTime()) {
+            accessor.setBurnTime(accessor.getBurnTime() - (int) actualAppliedTime);
+            if (accessor.getBurnTime() <= 0) {
                 Item fuelItem = fuelStack.getItem();
-                // reduce the size of the fuel stack
                 fuelStack.decrement(1);
                 if (fuelStack.isEmpty()) {
-                    blockEntity.burnTime = 0;
-                    Item fuelItemRecipeRemainder = fuelItem.getRecipeRemainder();
-                    blockEntity.inventory.set(1, fuelItemRecipeRemainder == null ? ItemStack.EMPTY : new ItemStack(fuelItemRecipeRemainder));
+                    accessor.setBurnTime(0);
+                    Item remainder = fuelItem.getRecipeRemainder();
+                    inv.set(FUEL_SLOT, remainder == null ? ItemStack.EMPTY : new ItemStack(remainder));
                 } else {
-                    blockEntity.burnTime =+ blockEntity.fuelTime;
+                    accessor.setBurnTime(accessor.getFuelTime());
                 }
             }
         } else {
-            int quotient = (int) (Math.floor((double) actualAppliedTime / blockEntity.fuelTime));
-            long remainder = actualAppliedTime % blockEntity.fuelTime;
-            // reduced stack by quotient
-            Item fuelItem = fuelStack.getItem();
+            int  quotient  = (int) Math.floor((double) actualAppliedTime / accessor.getFuelTime());
+            long remainder = actualAppliedTime % accessor.getFuelTime();
+            Item fuelItem  = fuelStack.getItem();
             fuelStack.decrement(quotient);
-            // reduce burnTime by remainder
-            blockEntity.burnTime =- (int)remainder;
-            if (blockEntity.burnTime <= 0) {
-                // reduce the size of the fuel stack
+            accessor.setBurnTime(accessor.getBurnTime() - (int) remainder);
+            if (accessor.getBurnTime() <= 0) {
                 fuelStack.decrement(1);
             }
             if (fuelStack.isEmpty()) {
-                blockEntity.burnTime = 0;
-                Item fuelItemRecipeRemainder = fuelItem.getRecipeRemainder();
-                blockEntity.inventory.set(1, fuelItemRecipeRemainder == null ? ItemStack.EMPTY : new ItemStack(fuelItemRecipeRemainder));
+                accessor.setBurnTime(0);
+                Item fuelRemainder = fuelItem.getRecipeRemainder();
+                inv.set(FUEL_SLOT, fuelRemainder == null ? ItemStack.EMPTY : new ItemStack(fuelRemainder));
             } else {
-                blockEntity.burnTime =+ blockEntity.fuelTime;
+                accessor.setBurnTime(accessor.getFuelTime());
             }
         }
 
-        if (actualAppliedTime < blockEntity.cookTimeTotal) {
-            // increment cook time
-            blockEntity.cookTime =+ (int) actualAppliedTime;
-            if (blockEntity.cookTime >= blockEntity.cookTimeTotal) {
-                if (AbstractFurnaceBlockEntity.craftRecipe(world.getRegistryManager(), recipeEntry, blockEntity.inventory, blockEntity.getMaxCountPerStack())) {
+        // ---- cooking progress -----------------------------------------------
+
+        int itemsCooked = 0;
+
+        if (actualAppliedTime < accessor.getCookTimeTotal()) {
+            accessor.setCookTime(accessor.getCookTime() + (int) actualAppliedTime);
+            if (accessor.getCookTime() >= accessor.getCookTimeTotal()) {
+                if (IModFurnaceBlockEntityMixin.callCraftRecipe(
+                        world.getRegistryManager(), recipeEntry, inv, blockEntity.getMaxCountPerStack())) {
                     blockEntity.setLastRecipe(recipeEntry);
+                    itemsCooked++;
                 }
                 if (cookStack.isEmpty()) {
-                    blockEntity.cookTime = 0;
-                    blockEntity.cookTimeTotal = 0;
+                    accessor.setCookTime(0);
+                    accessor.setCookTimeTotal(0);
                 } else {
-                    blockEntity.cookTimeTotal -= blockEntity.cookTimeTotal;
+                    accessor.setCookTimeTotal(0);
                 }
             }
-        }
-        // actual applied time is greated that cook time total,
-        // there, need to apply a factor of
-        else {
-            int quotient = (int) (Math.floor((double) actualAppliedTime / blockEntity.cookTimeTotal));
-            long remainder = actualAppliedTime % blockEntity.cookTimeTotal;
-            // reduced stack by quotient
-            boolean isSuccessful = false;
-            for (int iterations = 0; iterations < quotient; iterations++) {
-                isSuccessful |= AbstractFurnaceBlockEntity.craftRecipe(world.getRegistryManager(), recipeEntry, blockEntity.inventory, blockEntity.getMaxCountPerStack());
-            }
-            // update last recipe
-            if (isSuccessful) blockEntity.setLastRecipe(recipeEntry);
+        } else {
+            int  quotient  = (int) Math.floor((double) actualAppliedTime / accessor.getCookTimeTotal());
+            long remainder = actualAppliedTime % accessor.getCookTimeTotal();
 
-            // increment cook time
-            blockEntity.cookTime =+ (int) remainder;
-            if (blockEntity.cookTime >= blockEntity.cookTimeTotal) {
-                if (AbstractFurnaceBlockEntity.craftRecipe(world.getRegistryManager(), recipeEntry, blockEntity.inventory, blockEntity.getMaxCountPerStack())) {
+            for (int i = 0; i < quotient; i++) {
+                if (IModFurnaceBlockEntityMixin.callCraftRecipe(
+                        world.getRegistryManager(), recipeEntry, inv, blockEntity.getMaxCountPerStack())) {
                     blockEntity.setLastRecipe(recipeEntry);
+                    itemsCooked++;
+                }
+            }
+
+            accessor.setCookTime(accessor.getCookTime() + (int) remainder);
+            if (accessor.getCookTime() >= accessor.getCookTimeTotal()) {
+                if (IModFurnaceBlockEntityMixin.callCraftRecipe(
+                        world.getRegistryManager(), recipeEntry, inv, blockEntity.getMaxCountPerStack())) {
+                    blockEntity.setLastRecipe(recipeEntry);
+                    itemsCooked++;
                 }
                 if (cookStack.isEmpty()) {
-                    blockEntity.cookTime = 0;
-                    blockEntity.cookTimeTotal = 0;
+                    accessor.setCookTime(0);
+                    accessor.setCookTimeTotal(0);
                 } else {
-                    blockEntity.cookTimeTotal -= blockEntity.cookTimeTotal;
+                    accessor.setCookTimeTotal(0);
                 }
             }
         }
 
-        if(!blockEntity.isBurning()) {
-            state = state.with(AbstractFurnaceBlock.LIT, Boolean.valueOf(blockEntity.isBurning()));
+        // ---- effects --------------------------------------------------------
+
+        if (itemsCooked > 0 && world instanceof ServerWorld serverWorld) {
+            CatchupEffectHelper.spawnFurnaceEffects(serverWorld, pos);
+            CatchupEffectHelper.notifyNearbyPlayers(serverWorld, pos, itemsCooked);
+        }
+
+        // ---- post-processing ------------------------------------------------
+
+        if (!accessor.callIsBurning()) {
+            state = state.with(AbstractFurnaceBlock.LIT, false);
             world.setBlockState(pos, state, Block.NOTIFY_ALL);
             AbstractFurnaceBlockEntity.markDirty(world, pos, state);
         }

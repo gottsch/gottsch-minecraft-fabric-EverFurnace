@@ -3,6 +3,9 @@
 	"package": "mod.gottsch.fabric.everfurnace.core.mixin",
 	"compatibilityLevel": "JAVA_17",
 	"mixins": [
+		"IModCampfireBlockEntityMixin",
+		"IModFurnaceBlockEntityMixin",
+		"ModCampfireBlockEntityMixin",
 		"ModFurnaceBlockEntityMixin"
 	],
 	"injectors": {
